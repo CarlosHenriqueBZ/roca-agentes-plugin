@@ -1,0 +1,13 @@
+{
+  "categoria": "Mão de Obra Terceirizada",
+  "contas": {
+    "Sicredi": "NOME DA CONTA SICREDI NO MAIS CONTROLE",
+    "Banco do Brasil": "NOME DA CONTA BB NO MAIS CONTROLE"
+  },
+  "quem_paga": "Empresa",
+  "centro_de_custo": "Obra",
+  "forma_pagamento": "Pix",
+  "diaria_minima": 60,
+  "diaria_maxima": 400,
+  "modelo": "modelo_pagamentos.xlsx"
+}

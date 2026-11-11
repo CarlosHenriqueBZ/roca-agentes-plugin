@@ -1,0 +1,88 @@
+<h2 class="sr-only">Lançamento dos diaristas no Mais Controle: prontos, alertas, obras para confirmar, pendências e já lançados</h2>
+<style>
+.mc{background:var(--surface-1);border-radius:var(--radius);padding:12px 14px}.mc p{margin:0}
+.lb{font-size:13px;color:var(--text-secondary)}.nb{font-size:22px;font-weight:500}
+.sec{margin:1.25rem 0 .5rem;font-size:15px;font-weight:500}
+.ln{display:grid;gap:10px;align-items:center;padding:8px 0;border-bottom:.5px solid var(--border);font-size:14px}
+.bd{font-size:12px;padding:2px 8px;border-radius:var(--radius);text-align:center}
+.alta{background:var(--bg-success);color:var(--text-success)}.media,.baixa,.nenhuma{background:var(--bg-warning);color:var(--text-warning)}
+.av{background:var(--bg-warning);color:var(--text-warning);border-radius:var(--radius);padding:8px 12px;font-size:13px;margin-top:.75rem}
+code{font-family:var(--font-mono);font-size:13px}select{width:100%}
+.err{font-size:13px;color:var(--text-danger);margin:.5rem 0 0}
+</style>
+<div id="metricas" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;padding-top:.5rem"></div>
+<div id="avisos"></div>
+<div id="obras"></div>
+<div id="pendencias"></div>
+<div id="alertas"></div>
+<p class="err" id="erro"></p>
+<div id="confirmar" style="display:flex;gap:10px;justify-content:flex-end;margin-top:1rem">
+<button onclick="sendPrompt('Mostra a lista completa do que vai na planilha de importação')">Ver lista completa ↗</button>
+<button id="ok" style="background:var(--fill-primary);color:var(--on-primary);border:none">Confirmar e gerar planilha ↗</button>
+</div>
+<div id="importar" style="margin-top:1.25rem"></div>
+<script>
+const D = __DADOS__;
+const brl = v => v == null ? "—" : v.toLocaleString("pt-BR", {style: "currency", currency: "BRL"});
+const el = (tag, attrs = {}, ...filhos) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === "style") e.style.cssText = v; else if (k === "class") e.className = v; else if (k.includes("-")) e.setAttribute(k, v); else e[k] = v; } filhos.forEach(f => e.append(f)); return e; };
+const sec = (id, titulo) => { const c = document.getElementById(id); c.append(el("p", {class: "sec", textContent: titulo})); return c; };
+const comAlerta = D.lancamentos.filter(l => l.alertas.length);
+const pendOutras = D.pendencias.filter(p => p.tipo !== "obra");
+const m = document.getElementById("metricas");
+[["Prontos", D.lancamentos.length - comAlerta.length], ["Total", brl(D.total)], ["Conferir", comAlerta.length], ["Decidir", D.pendencias.length], ["Já lançados", D.ja_lancados.length]]
+  .forEach(([r, v]) => m.append(el("div", {class: "mc"}, el("p", {class: "lb", textContent: r}), el("p", {class: "nb", textContent: v}))));
+D.avisos.forEach(a => document.getElementById("avisos").append(el("p", {class: "av", textContent: a})));
+if (D.obras_novas.length) {
+  const c = sec("obras", "Confirme as obras dos PIX");
+  D.obras_novas.forEach((o, i) => {
+    const s = el("select", {id: "obra" + i, "aria-label": "Obra de " + o.apelido});
+    const opcoes = [...new Set([o.obra, ...o.alternativas, ...D.obras_conhecidas].filter(Boolean))];
+    if (!o.obra) s.append(el("option", {value: "", textContent: "Escolha a obra"}));
+    opcoes.forEach(n => s.append(el("option", {value: n, textContent: n, selected: n === o.obra})));
+    c.append(el("div", {class: "ln", style: "grid-template-columns:minmax(0,1fr) minmax(0,1.7fr) 70px"},
+      el("code", {textContent: o.apelido}), s, el("span", {class: "bd " + o.confianca, textContent: o.confianca})));
+  });
+}
+if (pendOutras.length) {
+  const c = sec("pendencias", "Ficaram de fora");
+  pendOutras.forEach(p => c.append(el("div", {class: "ln", style: "grid-template-columns:minmax(0,1fr) 100px minmax(0,1.4fr)"},
+    el("span", {textContent: p.nome}), el("span", {textContent: brl(p.valor)}), el("span", {class: "lb", textContent: p.motivo}))));
+}
+if (comAlerta.length) {
+  const c = sec("alertas", "Vão na planilha, mas confira");
+  comAlerta.forEach(l => c.append(el("div", {class: "ln", style: "grid-template-columns:minmax(0,1fr) minmax(0,1fr) 90px minmax(0,1.2fr)"},
+    el("span", {textContent: l.nome}), el("span", {class: "lb", textContent: l.obra}), el("span", {textContent: brl(l.valor)}), el("span", {class: "lb", textContent: l.alertas.join("; ")}))));
+}
+const IMPORTAR = "https://acessar.maiscontroleerp.com.br/#/importations?type=trade-payable&returnUrl=payable-installments";
+const pronto = D.lancamentos.length && !D.obras_novas.length;
+if (pronto) {
+  document.getElementById("confirmar").style.display = "none";
+  const box = document.getElementById("importar");
+  box.append(el("p", {class: "sec", textContent: "Importar no Mais Controle"}));
+  const card = el("div", {style: "background:var(--surface-2);border:.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem"});
+  [["1", "Abra a importação de pagamentos (botão abaixo)"], ["2", "Selecione o arquivo da planilha (o botão “Abrir a planilha” mostra onde está)"],
+   ["3", "Na “Análise dos dados”, confira as linhas marcadas abaixo"], ["4", "Finalize e clique em “Já importei”"]]
+    .forEach(([n, t]) => card.append(el("div", {style: "display:flex;gap:10px;padding:4px 0;font-size:14px"},
+      el("span", {class: "bd alta", style: "min-width:22px", textContent: n}), el("span", {textContent: t}))));
+  if (comAlerta.length) {
+    card.append(el("p", {class: "lb", style: "margin:.75rem 0 .25rem", textContent: "Conferir na análise:"}));
+    comAlerta.forEach(l => card.append(el("p", {style: "margin:2px 0;font-size:13px", textContent: "• " + l.nome + " (" + brl(l.valor) + "): " + l.alertas.join("; ")})));
+  }
+  const botoes = el("div", {style: "display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:1rem"});
+  const abrirMC = el("button", {style: "background:var(--fill-primary);color:var(--on-primary);border:none"}, el("i", {class: "ti ti-external-link", "aria-hidden": "true"}), " Abrir importação no Mais Controle");
+  abrirMC.onclick = () => openLink(IMPORTAR);
+  const abrirPlan = el("button", {}, el("i", {class: "ti ti-file-spreadsheet", "aria-hidden": "true"}), " Abrir a planilha ↗");
+  abrirPlan.onclick = () => sendPrompt("Abre a planilha de importação: " + D.arquivo);
+  const feito = el("button", {}, el("i", {class: "ti ti-check", "aria-hidden": "true"}), " Já importei ↗");
+  feito.onclick = () => sendPrompt("Já importei a planilha de diaristas no Mais Controle.");
+  botoes.append(abrirPlan, abrirMC, feito);
+  card.append(botoes);
+  box.append(card);
+}
+document.getElementById("ok").onclick = () => {
+  const erro = document.getElementById("erro"); erro.textContent = "";
+  const obras = D.obras_novas.map((o, i) => [o.apelido, document.getElementById("obra" + i).value]);
+  if (obras.some(([, v]) => !v)) { erro.textContent = "Escolha a obra de todos os apelidos"; return; }
+  sendPrompt("Confirmo o lançamento." + (obras.length ? " Obras: " + obras.map(([a, v]) => a + " = " + v).join("; ") + ". Grava e gera a planilha de novo." : " Pode me passar a planilha de importação."));
+};
+</script>

@@ -1,0 +1,14 @@
+{
+  "name": "roca",
+  "owner": {
+    "name": "Carlos Henrique"
+  },
+  "plugins": [
+    {
+      "name": "roca-agentes",
+      "source": "./roca-agentes",
+      "description": "Rotinas financeiras com o Mais Controle: planilha e lançamento de diaristas, conferência de notas e baixas.",
+      "version": "0.6.1"
+    }
+  ]
+}

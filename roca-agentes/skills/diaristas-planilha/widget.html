@@ -1,0 +1,66 @@
+<h2 class="sr-only">Conferência da planilha de pagamento dos diaristas: totais, obras para confirmar, contas que não fecham e texto do PIX de cada pessoa</h2>
+<style>
+.mc{background:var(--surface-1);border-radius:var(--radius);padding:12px 14px}.mc p{margin:0}
+.lb{font-size:13px;color:var(--text-secondary)}.nb{font-size:22px;font-weight:500}
+.sec{margin:1.25rem 0 .5rem;font-size:15px;font-weight:500}
+.ln{display:grid;gap:10px;align-items:center;padding:8px 0;border-bottom:.5px solid var(--border);font-size:14px}
+.bd{font-size:12px;padding:2px 8px;border-radius:var(--radius);text-align:center}
+.alta{background:var(--bg-success);color:var(--text-success)}.media,.baixa,.nenhuma{background:var(--bg-warning);color:var(--text-warning)}
+code{font-family:var(--font-mono);font-size:13px}select{width:100%}
+.err{font-size:13px;color:var(--text-danger);margin:.5rem 0 0}
+</style>
+<div id="metricas" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding-top:.5rem"></div>
+<div id="obras"></div>
+<div id="contas"></div>
+<div id="pix"></div>
+<p class="err" id="erro"></p>
+<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:1rem">
+<button id="copiar"><i class="ti ti-copy" aria-hidden="true"></i> Copiar todos os PIX</button>
+<button id="ok" style="background:var(--fill-primary);color:var(--on-primary);border:none">Confirmar ↗</button>
+</div>
+<script>
+const D = __DADOS__;
+const brl = v => v == null ? "—" : v.toLocaleString("pt-BR", {style: "currency", currency: "BRL"});
+const el = (tag, attrs = {}, ...filhos) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === "style") e.style.cssText = v; else if (k === "class") e.className = v; else if (k.includes("-")) e.setAttribute(k, v); else e[k] = v; } filhos.forEach(f => e.append(f)); return e; };
+const sec = (id, titulo) => { const c = document.getElementById(id); c.append(el("p", {class: "sec", textContent: titulo})); return c; };
+const naoFecha = D.diaristas.filter(d => d.diferenca != null && Math.abs(d.diferenca) >= 0.01);
+const m = document.getElementById("metricas");
+[["Diaristas", D.diaristas.length], ["Total na planilha", brl(D.total_planilha)], ["Conta não fecha", naoFecha.length], ["Obras novas", D.obras_novas.length]]
+  .forEach(([r, v]) => m.append(el("div", {class: "mc"}, el("p", {class: "lb", textContent: r}), el("p", {class: "nb", textContent: v}))));
+if (D.obras_novas.length) {
+  const c = sec("obras", "Confirme as obras");
+  D.obras_novas.forEach((o, i) => {
+    const s = el("select", {id: "obra" + i, "aria-label": "Obra de " + o.apelido});
+    const opcoes = [...new Set([o.obra, ...o.alternativas, ...D.obras_conhecidas].filter(Boolean))];
+    if (!o.obra) s.append(el("option", {value: "", textContent: "Escolha a obra"}));
+    opcoes.forEach(n => s.append(el("option", {value: n, textContent: n, selected: n === o.obra})));
+    c.append(el("div", {class: "ln", style: "grid-template-columns:minmax(0,1fr) minmax(0,1.7fr) 70px"},
+      el("code", {textContent: o.apelido}), s, el("span", {class: "bd " + o.confianca, textContent: o.confianca})));
+  });
+}
+if (naoFecha.length) {
+  const c = sec("contas", "Contas que não fecham");
+  naoFecha.forEach((d, i) => {
+    const s = el("select", {id: "conta" + i, "aria-label": "Valor de " + d.nome});
+    s.append(el("option", {value: "planilha", textContent: "Pagar " + brl(d.total_planilha)}));
+    s.append(el("option", {value: "calculado", textContent: "Pagar " + brl(d.total_calculado)}));
+    c.append(el("div", {class: "ln", style: "grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr)"},
+      el("span", {textContent: d.nome}), el("span", {class: "lb", textContent: d.alertas.filter(a => !a.startsWith("obra sem")).join("; ")}), s));
+  });
+}
+const c = sec("pix", "Texto do PIX");
+D.diaristas.filter(d => d.pix).forEach(d => {
+  const b = el("button", {"aria-label": "Copiar texto do PIX de " + d.nome}, el("i", {class: "ti ti-copy"}));
+  b.onclick = () => { navigator.clipboard.writeText(d.pix); b.innerHTML = '<i class="ti ti-check"></i>'; };
+  c.append(el("div", {class: "ln", style: "grid-template-columns:minmax(0,1fr) auto 90px auto"},
+    el("span", {textContent: d.nome}), el("code", {textContent: d.pix}), el("span", {class: "lb", style: "text-align:right", textContent: brl(d.total_planilha)}), b));
+});
+document.getElementById("copiar").onclick = () => navigator.clipboard.writeText(D.diaristas.filter(d => d.pix).map(d => d.nome + "\t" + d.pix + "\t" + d.total_planilha).join("\n"));
+document.getElementById("ok").onclick = () => {
+  const erro = document.getElementById("erro"); erro.textContent = "";
+  const obras = D.obras_novas.map((o, i) => [o.apelido, document.getElementById("obra" + i).value]);
+  if (obras.some(([, v]) => !v)) { erro.textContent = "Escolha a obra de todos os apelidos"; return; }
+  const contas = naoFecha.map((d, i) => d.nome + " = " + document.getElementById("conta" + i).value);
+  sendPrompt("Confirmo a conferência." + (obras.length ? " Obras: " + obras.map(([a, v]) => a + " = " + v).join("; ") + "." : "") + (contas.length ? " Valores: " + contas.join("; ") + "." : ""));
+};
+</script>

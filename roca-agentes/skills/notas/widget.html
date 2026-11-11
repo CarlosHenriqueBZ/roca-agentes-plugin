@@ -1,0 +1,44 @@
+<h2 class="sr-only">Conferência das notas fiscais com o Mais Controle: não lançadas, a conferir e lançadas, com a obra de cada uma</h2>
+<style>
+.mc{background:var(--surface-1);border-radius:var(--radius);padding:12px 14px}.mc p{margin:0}
+.lb{font-size:13px;color:var(--text-secondary)}.nb{font-size:22px;font-weight:500}
+.sec{margin:1.25rem 0 .5rem;font-size:15px;font-weight:500}
+.ln{display:grid;gap:10px;align-items:center;padding:8px 0;border-bottom:.5px solid var(--border);font-size:14px}
+select{width:100%}
+</style>
+<div id="metricas" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;padding-top:.5rem"></div>
+<div id="nao"></div>
+<div id="conf"></div>
+<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:1rem">
+<button onclick="openLink('https://acessar.maiscontroleerp.com.br/#/payable-installments')"><i class="ti ti-external-link" aria-hidden="true"></i> Abrir Pagamentos no Mais Controle</button>
+<button onclick="sendPrompt('Mostra as notas já lançadas')">Ver lançadas ↗</button>
+<button id="ok" style="background:var(--fill-primary);color:var(--on-primary);border:none">Confirmar obras ↗</button>
+</div>
+<script>
+const D = __DADOS__;
+const brl = v => v == null ? "—" : v.toLocaleString("pt-BR", {style: "currency", currency: "BRL"});
+const el = (tag, attrs = {}, ...filhos) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === "style") e.style.cssText = v; else if (k === "class") e.className = v; else if (k.includes("-")) e.setAttribute(k, v); else e[k] = v; } filhos.forEach(f => e.append(f)); return e; };
+const por = s => D.notas.filter(n => n.situacao === s);
+const m = document.getElementById("metricas");
+[["Não lançadas", por("NÃO LANÇADA").length], ["Conferir", por("CONFERIR").length], ["Lançadas", por("LANÇADA").length], ["Sem obra", D.notas.filter(n => !n.obra).length]]
+  .forEach(([r, v]) => m.append(el("div", {class: "mc"}, el("p", {class: "lb", textContent: r}), el("p", {class: "nb", textContent: v}))));
+const selects = [];
+const lista = (id, titulo, notas) => {
+  if (!notas.length) return;
+  const c = document.getElementById(id); c.append(el("p", {class: "sec", textContent: titulo}));
+  notas.forEach(n => {
+    const s = el("select", {"aria-label": "Obra da nota " + n.numero});
+    s.append(el("option", {value: "", textContent: "Sem obra", selected: !n.obra}));
+    [...new Set([n.obra, ...D.obras_conhecidas].filter(Boolean))].forEach(o => s.append(el("option", {value: o, textContent: o, selected: o === n.obra})));
+    selects.push([n, s]);
+    c.append(el("div", {class: "ln", style: "grid-template-columns:minmax(0,1.2fr) 70px 90px minmax(0,1.5fr)"},
+      el("span", {textContent: n.emitente}), el("span", {class: "lb", textContent: "nº " + n.numero}), el("span", {textContent: brl(n.valor)}), s));
+  });
+};
+lista("nao", "Não lançadas no Mais Controle", por("NÃO LANÇADA"));
+lista("conf", "Conferir (fornecedor tem lançamento, valor diferente)", por("CONFERIR"));
+document.getElementById("ok").onclick = () => {
+  const mudou = selects.filter(([n, s]) => s.value !== (n.obra || "")).map(([n, s]) => "nota " + n.numero + " = " + (s.value || "sem obra"));
+  sendPrompt(mudou.length ? "Obras das notas: " + mudou.join("; ") + ". Reorganiza as pastas." : "Obras das notas conferidas, pode manter.");
+};
+</script>
